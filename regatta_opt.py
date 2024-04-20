@@ -1,12 +1,16 @@
+from typing import Dict, List, Optional, Union
+
 from ortools.sat.python import cp_model
 
 
-def optimize_regatta_schedule(races, num_lanes, start_time, end_time):
+def optimize_regatta_schedule(
+    races: Dict[str, List[List[int]]], num_lanes: int, start_time: int, end_time: int
+) -> Optional[Dict[str, List[Dict[str, Union[int, Dict[int, int]]]]]]:
     model = cp_model.CpModel()
 
     # Variables
-    race_starts = {}
-    boat_lanes = {}
+    race_starts: Dict[str, cp_model.IntVar] = {}
+    boat_lanes: Dict[str, cp_model.IntVar] = {}
     for race_name, heats in races.items():
         for heat_index, boats in enumerate(heats):
             heat_name = f"{race_name}_Heat_{chr(ord('a') + heat_index)}"
@@ -31,7 +35,7 @@ def optimize_regatta_schedule(races, num_lanes, start_time, end_time):
     # 3. At any given time, no more than num_lanes boats are racing concurrently
     time_points = range(start_time, end_time + 1)
     for t in time_points:
-        concurrent_races = []
+        concurrent_races: List[cp_model.IntVar] = []
         for heat_name in race_starts:
             is_concurrent = model.NewBoolVar(f"race_{heat_name}_concurrent_at_{t}")
             model.Add(race_starts[heat_name] <= t).OnlyEnforceIf(is_concurrent)
@@ -67,13 +71,14 @@ def optimize_regatta_schedule(races, num_lanes, start_time, end_time):
     solver.parameters.max_time_in_seconds = 60  # Set a time limit for the solver
     status = solver.Solve(model)
 
+    # Process and format the output
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        schedule = {}
+        schedule: Dict[str, List[Dict[str, Union[int, Dict[int, int]]]]] = {}
         for race_name, heats in races.items():
             schedule[race_name] = []
             for heat_index in range(len(heats)):
                 heat_name = f"{race_name}_Heat_{chr(ord('a') + heat_index)}"
-                heat_info = {
+                heat_info: Dict[str, Union[int, Dict[int, int]]] = {
                     "start_time": solver.Value(race_starts[heat_name]),
                     "boat_lanes": {},
                 }
@@ -89,8 +94,10 @@ def optimize_regatta_schedule(races, num_lanes, start_time, end_time):
         return None
 
 
-def generate_races(race_definitions, boats_per_race):
-    races = {}
+def generate_races(
+    race_definitions: Dict[str, Dict[str, List[str]]], boats_per_race: Dict[str, int]
+) -> Dict[str, List[List[int]]]:
+    races: Dict[str, List[List[int]]] = {}
     for boat_type, categories in race_definitions.items():
         for category, divisions in categories.items():
             for division in divisions:
